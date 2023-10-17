@@ -24,11 +24,14 @@ package teamcode;
 
 import android.os.Environment;
 
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+
 import org.openftc.easyopencv.OpenCvCameraRotation;
 
 import TrcCommonLib.trclib.TrcDriveBase.DriveOrientation;
 import TrcCommonLib.trclib.TrcHomographyMapper;
 import TrcCommonLib.trclib.TrcPidController;
+import TrcCommonLib.trclib.TrcUtil;
 import TrcFtcLib.ftclib.FtcGamepad;
 
 /**
@@ -46,6 +49,7 @@ public class RobotParams
         public static boolean useLoopPerformanceMonitor = true;
         public static boolean useBlinkin = false;
         public static boolean useBatteryMonitor = false;
+        public static boolean doStatusUpdate = true;
         // Vision
         public static boolean useWebCam = true;
         public static boolean hasWebCam2 = false;
@@ -68,6 +72,10 @@ public class RobotParams
     }   //class Preferences
 
     public static final String ROBOT_NAME                       = "Robotxxxx";
+    public static final RevHubOrientationOnRobot.LogoFacingDirection hubLogoDirection =
+        RevHubOrientationOnRobot.LogoFacingDirection.UP;
+    public static final RevHubOrientationOnRobot.UsbFacingDirection hubUsbDirection =
+        RevHubOrientationOnRobot.UsbFacingDirection.FORWARD;
     public static final String TEAM_FOLDER_PATH                 =
         Environment.getExternalStorageDirectory().getPath() + "/FIRST/ftcxxxx";
     public static final String LOG_FOLDER_PATH                  = TEAM_FOLDER_PATH + "/tracelogs";
@@ -105,9 +113,9 @@ public class RobotParams
     // Robot dimensions.
     //
     public static final double ROBOT_LENGTH                     = 17.0;
-    public static final double ROBOT_WIDTH                      = 13.0;
-    public static final double DRIVE_BASE_LENGTH                = 13.25;
-    public static final double DRIVE_BASE_WIDTH                 = 11.25;
+    public static final double ROBOT_WIDTH                      = 17.0;
+    public static final double DRIVE_BASE_LENGTH                = (24.0 * 14)*TrcUtil.INCHES_PER_MM;
+    public static final double DRIVE_BASE_WIDTH                 = 16.0;
     //
     // Game positions.
     //
@@ -123,16 +131,26 @@ public class RobotParams
     public static final double CAM_LEFT_OFFSET                  = 7.125;//Camera offset from left of robot in inches
     public static final double CAM_HEIGHT_OFFSET                = 3.750;//Camera offset from floor in inches
     public static final double CAM_TILT_DOWN                    = 15.00;//Camera tilt down angle from horizontal in deg
-    // Camera: Logitech C270
-    public static final double WEBCAM_FX                        = 822.317;  // in pixels
-    public static final double WEBCAM_FY                        = 822.317;  // in pixels
-    public static final double WEBCAM_CX                        = 319.495;  // in pixels
-    public static final double WEBCAM_CY                        = 242.502;  // in pixels
+//    // Camera: Micorosoft Lifecam HD 3000 v1/v2
+//    public static final double WEBCAM_FX                        = 678.154;  // in pixels
+//    public static final double WEBCAM_FY                        = 678.170;  // in pixels
+//    public static final double WEBCAM_CX                        = 318.135;  // in pixels
+//    public static final double WEBCAM_CY                        = 228.374;  // in pixels
+//    // Camera: Logitech C270
+//    public static final double WEBCAM_FX                        = 822.317;  // in pixels
+//    public static final double WEBCAM_FY                        = 822.317;  // in pixels
+//    public static final double WEBCAM_CX                        = 319.495;  // in pixels
+//    public static final double WEBCAM_CY                        = 242.502;  // in pixels
 //    // Camera: Logitech C310
 //    public static final double WEBCAM_FX                        = 821.993;  // in pixels
 //    public static final double WEBCAM_FY                        = 821.993;  // in pixels
 //    public static final double WEBCAM_CX                        = 330.489;  // in pixels
 //    public static final double WEBCAM_CY                        = 248.997;  // in pixels
+//    // Camera: Logitech C920
+//    public static final double WEBCAM_FX                        = 622.001;  // in pixels
+//    public static final double WEBCAM_FY                        = 622.001;  // in pixels
+//    public static final double WEBCAM_CX                        = 319.803;  // in pixels
+//    public static final double WEBCAM_CY                        = 241.251;  // in pixels
 
     // Measurement unit: pixels
     public static final double HOMOGRAPHY_CAMERA_TOPLEFT_X      = 0.0;
@@ -180,10 +198,10 @@ public class RobotParams
     // DriveBase subsystem.
     //
     public static DriveOrientation DEF_DRIVE_ORIENTATION        = DriveOrientation.FIELD;
-    public static final double LFSTEER_ZERO_POS                 = 0.466807;
-    public static final double RFSTEER_ZERO_POS                 = 0.464366;
-    public static final double LBSTEER_ZERO_POS                 = 0.536509;
-    public static final double RBSTEER_ZERO_POS                 = 0.538126;
+    public static final double LFSTEER_ZERO_POS                 = 0.474812;
+    public static final double RFSTEER_ZERO_POS                 = 0.467663;
+    public static final double LBSTEER_ZERO_POS                 = 0.541338;
+    public static final double RBSTEER_ZERO_POS                 = 0.545340;
 
     public static final boolean LFDRIVE_INVERTED                = false;
     public static final boolean RFDRIVE_INVERTED                = true;
@@ -193,7 +211,7 @@ public class RobotParams
     public static final boolean RFSTEER_INVERTED                = true;
     public static final boolean LBSTEER_INVERTED                = true;
     public static final boolean RBSTEER_INVERTED                = true;
-    public static final double STEER_SERVO_KP                   = 0.005;
+    public static final double STEER_SERVO_KP                   = 0.01;
     public static final double STEER_SERVO_KI                   = 0.0;
     public static final double STEER_SERVO_KD                   = 0.0;
     public static final double STEER_SERVO_KF                   = 0.0;

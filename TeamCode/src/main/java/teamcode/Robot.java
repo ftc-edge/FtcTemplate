@@ -153,6 +153,9 @@ public class Robot
             if (robotDrive.gyro != null)
             {
                 robotDrive.gyro.setEnabled(true);
+                // The following are performance counters, could be disabled for competition if you want.
+                // But it might give you some insight if somehow autonomous wasn't performing as expected.
+                robotDrive.gyro.setElapsedTimerEnabled(true);
             }
             //
             // Enable odometry for all opmodes. We may need odometry in TeleOp for auto-assist drive.
@@ -173,8 +176,8 @@ public class Robot
                 {
                     // There was no saved robotPose, use previous autonomous start position. In case we didn't even
                     // have a previous autonomous run (e.g. just powering up the robot and go into TeleOp), then we
-                    // will default to RED_LEFT starting position which is the AutoChoices default.
-                    robotDrive.setAutoStartPosition(FtcAuto.autoChoices);
+                    // will default to starting position of the AutoChoices default.
+                    setRobotStartPosition(FtcAuto.autoChoices);
                     globalTracer.traceInfo(
                         funcName, "No saved RobotPose, use autoChoiceStartPos=%s",
                         robotDrive.driveBase.getFieldPosition());
@@ -182,14 +185,6 @@ public class Robot
             }
             // Consume it so it's no longer valid for next run.
             endOfAutoRobotPose = null;
-        }
-        //
-        // The following are performance counters, could be disabled for competition if you want.
-        // But it might give you some insight if somehow autonomous wasn't performing as expected.
-        //
-        if (robotDrive != null && robotDrive.gyro != null)
-        {
-            robotDrive.gyro.setElapsedTimerEnabled(true);
         }
         TrcDigitalInput.setElapsedTimerEnabled(true);
         TrcMotor.setElapsedTimerEnabled(true);
@@ -278,6 +273,13 @@ public class Robot
     }   //stopMode
 
     /**
+     * This method update all subsystem status on the dashboard.
+     */
+    public void updateStatus()
+    {
+    }   //updateStatus
+
+    /**
      * This method zero calibrates all subsystems.
      *
      * @param owner specifies the owner ID to check if the caller has ownership of the motor.
@@ -293,6 +295,15 @@ public class Robot
     {
         zeroCalibrate(null);
     }   //zeroCalibrate
+
+    /**
+     * This method sets the robot's starting position according to the autonomous choices.
+     *
+     * @param autoChoices specifies all the auto choices.
+     */
+    public void setRobotStartPosition(FtcAuto.AutoChoices autoChoices)
+    {
+    }   //setRobotStartPosition
 
     /**
      * This method sends the text string to the Driver Station to be spoken using text to speech.
