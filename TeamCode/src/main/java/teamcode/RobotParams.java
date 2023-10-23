@@ -31,6 +31,7 @@ import org.openftc.easyopencv.OpenCvCameraRotation;
 import TrcCommonLib.trclib.TrcDriveBase.DriveOrientation;
 import TrcCommonLib.trclib.TrcHomographyMapper;
 import TrcCommonLib.trclib.TrcPidController;
+import TrcCommonLib.trclib.TrcPose2D;
 import TrcCommonLib.trclib.TrcUtil;
 import TrcFtcLib.ftclib.FtcGamepad;
 
@@ -65,7 +66,6 @@ public class RobotParams
         public static boolean swerveDualServoSteering = true;
         // Drive Base
         public static boolean useExternalOdometry = false;
-        public static boolean useVelocityControl = false;
         public static boolean doSwervePhysicalAlignment = false;
         // Subsystems
         public static boolean useSubsystems = false;
@@ -106,9 +106,9 @@ public class RobotParams
     //
     // Field dimensions.
     //
-    public static final double FULL_FIELD_INCHES                = 141.0;
+    public static final double FULL_FIELD_INCHES                = 141.24;
     public static final double HALF_FIELD_INCHES                = FULL_FIELD_INCHES/2.0;
-    public static final double FULL_TILE_INCHES                 = 23.75;
+    public static final double FULL_TILE_INCHES                 = FULL_FIELD_INCHES/6.0;
     //
     // Robot dimensions.
     //
@@ -117,8 +117,14 @@ public class RobotParams
     public static final double DRIVE_BASE_LENGTH                = (24.0 * 14)*TrcUtil.INCHES_PER_MM;
     public static final double DRIVE_BASE_WIDTH                 = 16.0;
     //
-    // Game positions.
+    // Game related locations.
     //
+    public static final TrcPose2D[] APRILTAG_POSES              = new TrcPose2D[] {
+        new TrcPose2D(0.0, 0.0, 0.0),   // TagId 1
+        new TrcPose2D(0.0, 0.0, 0.0),   // TagId 2
+        new TrcPose2D(0.0, 0.0, 0.0),   // TagId 3
+        new TrcPose2D(0.0, 0.0, 0.0)    // TagId 4
+    };
 
     //
     // Vision subsystem.
@@ -203,10 +209,10 @@ public class RobotParams
     public static final double LBSTEER_ZERO_POS                 = 0.541338;
     public static final double RBSTEER_ZERO_POS                 = 0.545340;
 
-    public static final boolean LFDRIVE_INVERTED                = false;
-    public static final boolean RFDRIVE_INVERTED                = true;
-    public static final boolean LBDRIVE_INVERTED                = false;
-    public static final boolean RBDRIVE_INVERTED                = true;
+    public static final boolean LFDRIVE_INVERTED                = true;
+    public static final boolean RFDRIVE_INVERTED                = false;
+    public static final boolean LBDRIVE_INVERTED                = true;
+    public static final boolean RBDRIVE_INVERTED                = false;
     public static final boolean LFSTEER_INVERTED                = true;
     public static final boolean RFSTEER_INVERTED                = true;
     public static final boolean LBSTEER_INVERTED                = true;

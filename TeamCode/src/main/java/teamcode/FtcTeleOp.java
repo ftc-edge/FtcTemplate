@@ -28,6 +28,7 @@ import java.util.Locale;
 
 import TrcCommonLib.trclib.TrcDriveBase;
 import TrcCommonLib.trclib.TrcGameController;
+import TrcCommonLib.trclib.TrcPose2D;
 import TrcCommonLib.trclib.TrcRobot;
 import TrcFtcLib.ftclib.FtcGamepad;
 import TrcFtcLib.ftclib.FtcOpMode;
@@ -46,6 +47,8 @@ public class FtcTeleOp extends FtcOpMode
     private double drivePowerScale = RobotParams.DRIVE_POWER_SCALE_NORMAL;
     private double turnPowerScale = RobotParams.TURN_POWER_SCALE_NORMAL;
     private boolean manualOverride = false;
+    private boolean relocalizing = false;
+    private TrcPose2D robotFieldPose = null;
 
     //
     // Implements FtcOpMode abstract method.
@@ -97,6 +100,8 @@ public class FtcTeleOp extends FtcOpMode
     @Override
     public void startMode(TrcRobot.RunMode prevMode, TrcRobot.RunMode nextMode)
     {
+        final String funcName = "startMode";
+
         if (robot.globalTracer.isTraceLogOpened())
         {
             robot.globalTracer.setTraceLogEnabled(true);
@@ -107,6 +112,15 @@ public class FtcTeleOp extends FtcOpMode
         // Tell robot object opmode is about to start so it can do the necessary start initialization for the mode.
         //
         robot.startMode(nextMode);
+        if (robot.vision != null)
+        {
+            // Enabling AprilTag vision to support robot re-localization.
+            if (robot.vision.aprilTagVision != null)
+            {
+                robot.globalTracer.traceInfo(funcName, "Enabling AprilTagVision.");
+                robot.vision.setAprilTagVisionEnabled(true);
+            }
+        }
     }   //startMode
 
     /**
@@ -158,7 +172,7 @@ public class FtcTeleOp extends FtcOpMode
                     robot.robotDrive.driveBase.supportsHolonomicDrive())
                 {
                     robot.robotDrive.driveBase.holonomicDrive(
-                        null, inputs[0], inputs[1], inputs[2], robot.robotDrive.driveBase.getDriveGyroAngle());
+                        null, inputs[0], inputs[1], inputs[2], robot.robotDrive.driveBase.getDriveGyroAngle(inputs[2]));
                 }
                 else
                 {
@@ -168,12 +182,22 @@ public class FtcTeleOp extends FtcOpMode
                     1, "DriveBase: Power=(%.2f,y=%.2f,rot=%.2f),Pose:%s,Mode=%s",
                     inputs[0], inputs[1], inputs[2], robot.robotDrive.driveBase.getDriveOrientation(),
                     robot.robotDrive.driveBase.getFieldPosition());
+                // We are trying to re-localize the robot and vision hasn't seen AprilTag yet.
+                if (relocalizing && robotFieldPose == null)
+                {
+                    robotFieldPose = robot.vision.getRobotFieldPose();
+                }
             }
             //
             // Other subsystems.
             //
             if (RobotParams.Preferences.useSubsystems)
             {
+            }
+
+            if (RobotParams.Preferences.doStatusUpdate)
+            {
+                robot.updateStatus();
             }
         }
     }   //periodic
@@ -185,8 +209,11 @@ public class FtcTeleOp extends FtcOpMode
      */
     public void setDriveOrientation(TrcDriveBase.DriveOrientation orientation)
     {
+        final String funcName = "setDriveOrientation";
+
         if (robot.robotDrive != null)
         {
+            robot.globalTracer.traceInfo(funcName, "driveOrientation=%s", orientation);
             robot.robotDrive.driveBase.setDriveOrientation(
                 orientation, orientation == TrcDriveBase.DriveOrientation.FIELD);
             if (robot.blinkin != null)
@@ -228,6 +255,19 @@ public class FtcTeleOp extends FtcOpMode
                 break;
 
             case FtcGamepad.GAMEPAD_Y:
+                if (pressed && robot.robotDrive != null)
+                {
+                    if (robot.robotDrive.driveBase.isGyroAssistEnabled())
+                    {
+                        // Disable GyroAssist drive.
+                        robot.robotDrive.driveBase.setGyroAssistEnabled(null);
+                    }
+                    else
+                    {
+                        // Enable GyroAssist drive.
+                        robot.robotDrive.driveBase.setGyroAssistEnabled(robot.robotDrive.pidDrive.getTurnPidCtrl());
+                    }
+                }
                 break;
 
             case FtcGamepad.GAMEPAD_LBUMPER:
@@ -263,9 +303,26 @@ public class FtcTeleOp extends FtcOpMode
             case FtcGamepad.GAMEPAD_DPAD_RIGHT:
                 break;
 
+            case FtcGamepad.GAMEPAD_START:
+                if (robot.vision != null && robot.vision.aprilTagVision != null && robot.robotDrive != null)
+                {
+                    // On press of the button, we will start looking for AprilTag for re-localization.
+                    // On release of the button, we will set the robot's field location if we found the AprilTag.
+                    relocalizing = pressed;
+                    if (!pressed && robotFieldPose != null)
+                    {
+                        // Vision found an AprilTag, set the new robot field location but don't disturb the robot's
+                        // heading because it may be set for field oriented driving.
+                        robot.robotDrive.driveBase.setFieldPosition(robotFieldPose, true);
+                        robotFieldPose = null;
+                    }
+                }
+                break;
+
             case FtcGamepad.GAMEPAD_BACK:
                 if (pressed && robot.robotDrive != null && robot.robotDrive instanceof SwerveDrive)
                 {
+                    // Drive base is a Swerve Drive, align all steering wheels forward.
                     ((SwerveDrive) robot.robotDrive).setSteerAngle(0.0, false, false);
                 }
                 break;

@@ -170,7 +170,6 @@ public class TaskAuto extends TrcAutoTask<TaskAuto.State>
                 driveOwner = null;
             }
 
-            // robot.robotDrive.driveBase.releaseExclusiveAccess(currOwner);
             currOwner = null;
         }
     }   //releaseSubsystemsOwnership
