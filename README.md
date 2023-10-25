@@ -8,7 +8,7 @@ To use this repository template, you can clone or fork this template repository 
 * Once the fork is done. Clone your GitHub repository to your computer using your favorite GitHub tool such as GitHub Desktop.
 * On GitHub Desktop, click File->Clone repository..., select the repository you just forked and type in the path on the computer where you want to clone the repository to.
 
-Congratulations! You just clone our template repository. Now you can fire up Android Studio and import this gradle project. Once that is done, you can now go to TeamCode and browse around the provided template code or sample code. You can compile the code and check if you have any issues with the cloned template. Or you can jump right in and start modifying/customizing the code.
+Congratulations!!!!!! You just clone our template repository. Now you can fire up Android Studio and import this gradle project. Once that is done, you can now go to TeamCode and browse around the provided template code or sample code. You can compile the code and check if you have any issues with the cloned template. Or you can jump right in and start modifying/customizing the code.
 
 ### TeleOp Driving a Mecanum Robot Right Out Of The Box
 Since this template already contains basic code for a mecanum robot base, it takes very few modifications to make it work with your mecanum robot.
