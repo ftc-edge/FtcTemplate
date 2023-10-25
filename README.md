@@ -1506,3 +1506,7 @@ Changes include:
  * The API for the Legacy Module and Core Device Interface Module have been updated.
    - Support for encoders with the Legacy Module is now working.
  * The hardware loop has been updated for better performance.
+
+## Release 15.08.03.002
+
+* Edited by Karsten
