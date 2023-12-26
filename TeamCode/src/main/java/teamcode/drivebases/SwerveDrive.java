@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.Scanner;
 
 import TrcCommonLib.trclib.TrcDbgTrace;
-import TrcCommonLib.trclib.TrcDriveBaseOdometry;
+import TrcCommonLib.trclib.TrcOdometryWheels;
 import TrcCommonLib.trclib.TrcPidController;
 import TrcCommonLib.trclib.TrcPidDrive;
 import TrcCommonLib.trclib.TrcPurePursuitDrive;
@@ -47,8 +47,8 @@ import teamcode.RobotParams;
  */
 public class SwerveDrive extends RobotDrive
 {
-    private static final boolean logPoseEvents = false;
-    private static final boolean tracePidInfo = false;
+    private static final String moduleName = SwerveDrive.class.getSimpleName();
+    private static final TrcDbgTrace globalTracer = TrcDbgTrace.getGlobalTracer();
 
     private final String[] steerEncoderNames = {
         RobotParams.HWNAME_LFSTEER_ENCODER, RobotParams.HWNAME_RFSTEER_ENCODER,
@@ -77,8 +77,6 @@ public class SwerveDrive extends RobotDrive
     public SwerveDrive()
     {
         super();
-
-        final TrcDbgTrace globalTracer = TrcDbgTrace.getGlobalTracer();
         readSteeringCalibrationData();
         driveMotors = createDriveMotors(driveMotorNames, driveMotorInverted);
         steerEncoders = createSteerEncoders(
@@ -100,27 +98,27 @@ public class SwerveDrive extends RobotDrive
              // the left and right front encoder ports as the Y1 and Y2 odometry. Gyro will serve as the angle
              // odometry.
              //
-             TrcDriveBaseOdometry driveBaseOdometry = new TrcDriveBaseOdometry(
-                 new TrcDriveBaseOdometry.AxisSensor(
-                     driveMotors[INDEX_RIGHT_BACK], RobotParams.X_ODOMETRY_WHEEL_OFFSET),
-                 new TrcDriveBaseOdometry.AxisSensor[] {
-                     new TrcDriveBaseOdometry.AxisSensor(
-                         driveMotors[INDEX_LEFT_FRONT], RobotParams.Y_LEFT_ODOMETRY_WHEEL_OFFSET),
-                     new TrcDriveBaseOdometry.AxisSensor(
-                         driveMotors[INDEX_RIGHT_FRONT], RobotParams.Y_RIGHT_ODOMETRY_WHEEL_OFFSET)},
+             TrcOdometryWheels driveBaseOdometry = new TrcOdometryWheels(
+                 new TrcOdometryWheels.AxisSensor(
+                     driveMotors[INDEX_RIGHT_BACK], RobotParams.X_ODWHEEL_Y_OFFSET, RobotParams.X_ODWHEEL_X_OFFSET),
+                 new TrcOdometryWheels.AxisSensor[] {
+                     new TrcOdometryWheels.AxisSensor(
+                         driveMotors[INDEX_LEFT_FRONT], RobotParams.YLEFT_ODWHEEL_X_OFFSET,
+                         RobotParams.YLEFT_ODWHEEL_Y_OFFSET),
+                     new TrcOdometryWheels.AxisSensor(
+                         driveMotors[INDEX_RIGHT_FRONT], RobotParams.YRIGHT_ODWHEEL_X_OFFSET,
+                         RobotParams.YRIGHT_ODWHEEL_Y_OFFSET)},
                  gyro);
              //
              // Set the drive base to use the external odometry device overriding the built-in one.
              //
              driveBase.setDriveBaseOdometry(driveBaseOdometry);
-             driveBase.setOdometryScales(
-                 RobotParams.X_ODWHEEL_INCHES_PER_COUNT, RobotParams.Y_ODWHEEL_INCHES_PER_COUNT);
+             driveBase.setOdometryScales(RobotParams.ODWHEEL_INCHES_PER_COUNT, RobotParams.ODWHEEL_INCHES_PER_COUNT);
          }
          else
          {
              driveBase.setOdometryScales(RobotParams.YPOS_INCHES_PER_COUNT, RobotParams.YPOS_INCHES_PER_COUNT);
          }
-
         //
         // Create and initialize PID controllers.
         //
@@ -129,8 +127,7 @@ public class SwerveDrive extends RobotDrive
         TrcPidController.PidParameters yPosPidParams = new TrcPidController.PidParameters(
             RobotParams.yPosPidCoeff, RobotParams.YPOS_TOLERANCE, driveBase::getYPosition);
         TrcPidController.PidParameters turnPidParams = new TrcPidController.PidParameters(
-            RobotParams.turnPidCoeff, RobotParams.TURN_TOLERANCE, RobotParams.TURN_SETTLING,
-            RobotParams.TURN_STEADY_STATE_ERR, RobotParams.TURN_STALL_ERRRATE_THRESHOLD, driveBase::getHeading, null);
+            RobotParams.turnPidCoeff, RobotParams.TURN_TOLERANCE, driveBase::getHeading);
 
         pidDrive = new TrcPidDrive("pidDrive", driveBase, xPosPidParams, yPosPidParams, turnPidParams);
 
@@ -145,14 +142,14 @@ public class SwerveDrive extends RobotDrive
         // AbsoluteTargetMode eliminates cumulative errors on multi-segment runs because drive base is keeping track
         // of the absolute target position.
         pidDrive.setAbsoluteTargetModeEnabled(true);
-        pidDrive.setMsgTracer(globalTracer, logPoseEvents, tracePidInfo);
+        pidDrive.setTraceLevel(TrcDbgTrace.MsgLevel.INFO, false, false, false);
 
         purePursuitDrive = new TrcPurePursuitDrive(
             "purePursuitDrive", driveBase,
             RobotParams.PPD_FOLLOWING_DISTANCE, RobotParams.PPD_POS_TOLERANCE, RobotParams.PPD_TURN_TOLERANCE,
             RobotParams.xPosPidCoeff, RobotParams.yPosPidCoeff, RobotParams.turnPidCoeff, RobotParams.velPidCoeff);
         purePursuitDrive.setFastModeEnabled(true);
-        purePursuitDrive.setMsgTracer(globalTracer, logPoseEvents, tracePidInfo);
+        purePursuitDrive.setTraceLevel(TrcDbgTrace.MsgLevel.INFO, false, false, false);
     }   //SwerveDrive
 
     /**
@@ -169,8 +166,7 @@ public class SwerveDrive extends RobotDrive
         for (int i = 0; i < steerEncoderNames.length; i++)
         {
             encoders[i] = new FtcAnalogEncoder(encoderNames[i]);
-            encoders[i].setScaleAndOffset(180.0, 0.0);
-            encoders[i].setZeroOffset(zeroOffsets[i]);
+            encoders[i].setScaleAndOffset(180.0, 0.0, zeroOffsets[i]);
             // Enable Cartesian converter.
             encoders[i].setEnabled(true);
         }
@@ -244,14 +240,12 @@ public class SwerveDrive extends RobotDrive
 
     /**
      * This method prints the performance info to the trace log.
-     *
-     * @param tracer specifies the tracer to be used to print the info.
      */
-    public void printSteerPerformanceInfo(TrcDbgTrace tracer)
+    public void printSteerPerformanceInfo()
     {
         for (FtcCRServo servo : steerServos)
         {
-            servo.printPidControlTaskPerformance(tracer);
+            servo.printPidControlTaskPerformance();
         }
     }   //printSteerPerformanceInfo
 
@@ -339,8 +333,6 @@ public class SwerveDrive extends RobotDrive
      */
     public void saveSteeringCalibrationData()
     {
-        final String funcName = "saveSteeringCalibrationData";
-
         try (PrintStream out = new PrintStream(new FileOutputStream(
             RobotParams.TEAM_FOLDER_PATH + "/" + RobotParams.STEERING_CALIBRATION_DATA_FILE)))
         {
@@ -349,8 +341,8 @@ public class SwerveDrive extends RobotDrive
                 out.printf("%s: %f\n", steerServoNames[i], zeroPositions[i]);
             }
             out.close();
-            TrcDbgTrace.getGlobalTracer().traceInfo(
-                funcName, "SteeringCalibrationData%s=%s",
+            globalTracer.traceInfo(
+                moduleName, "SteeringCalibrationData%s=%s",
                 Arrays.toString(steerServoNames), Arrays.toString(zeroPositions));
         }
         catch (FileNotFoundException e)
@@ -366,8 +358,6 @@ public class SwerveDrive extends RobotDrive
      */
     public void readSteeringCalibrationData()
     {
-        final String funcName = "readSteeringCalibrationData";
-        TrcDbgTrace tracer = TrcDbgTrace.getGlobalTracer();
         String line = null;
 
         try (Scanner in = new Scanner(new FileReader(
@@ -389,19 +379,20 @@ public class SwerveDrive extends RobotDrive
         }
         catch (FileNotFoundException e)
         {
-            tracer.traceWarn(funcName, "Steering calibration data file not found, using built-in defaults.");
+            globalTracer.traceWarn(moduleName, "Steering calibration data file not found, using built-in defaults.");
         }
         catch (NumberFormatException e)
         {
-            tracer.traceErr(funcName, "Invalid zero position value in line %s", line);
+            globalTracer.traceErr(moduleName, "Invalid zero position value in line %s", line);
         }
         catch (RuntimeException e)
         {
-            tracer.traceErr(funcName, "Invalid servo name in line %s", line);
+            globalTracer.traceErr(moduleName, "Invalid servo name in line %s", line);
         }
 
-        tracer.traceInfo(
-            funcName, "SteeringCalibrationData%s=%s", Arrays.toString(steerServoNames), Arrays.toString(zeroPositions));
+        globalTracer.traceInfo(
+            moduleName, "SteeringCalibrationData%s=%s", Arrays.toString(steerServoNames),
+            Arrays.toString(zeroPositions));
     }   //readSteeringCalibrationData
 
 }   //class SwerveDrive

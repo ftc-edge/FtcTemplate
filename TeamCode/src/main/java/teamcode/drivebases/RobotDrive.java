@@ -25,6 +25,7 @@ package teamcode.drivebases;
 import TrcCommonLib.trclib.TrcDriveBase;
 import TrcCommonLib.trclib.TrcPidDrive;
 import TrcCommonLib.trclib.TrcPurePursuitDrive;
+import TrcCommonLib.trclib.TrcUtil;
 import TrcFtcLib.ftclib.FtcDcMotor;
 import TrcFtcLib.ftclib.FtcImu;
 import teamcode.RobotParams;
@@ -110,10 +111,9 @@ public class RobotDrive
         for (int i = 0; i < motorNames.length; i++)
         {
             motors[i] = new FtcDcMotor(motorNames[i]);
-            motors[i].setVelocityPidCoefficients(RobotParams.DRIVE_VELPID_COEFFS);
-            motors[i].setPositionPidCoefficients(RobotParams.DRIVE_POSPID_COEFFS);
             motors[i].setBrakeModeEnabled(RobotParams.DRIVE_WHEEL_BRAKE_MODE_ON);
             motors[i].setMotorInverted(inverted[i]);
+            motors[i].setVoltageCompensationEnabled(TrcUtil.BATTERY_NOMINAL_VOLTAGE);
         }
 
         return motors;

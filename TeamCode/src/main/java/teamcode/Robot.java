@@ -28,6 +28,7 @@ import TrcCommonLib.trclib.TrcMotor;
 import TrcCommonLib.trclib.TrcPose2D;
 import TrcCommonLib.trclib.TrcRobot;
 import TrcCommonLib.trclib.TrcServo;
+import TrcCommonLib.trclib.TrcTimer;
 import TrcFtcLib.ftclib.FtcDashboard;
 import TrcFtcLib.ftclib.FtcMatchInfo;
 import TrcFtcLib.ftclib.FtcOpMode;
@@ -43,14 +44,17 @@ import teamcode.vision.Vision;
  */
 public class Robot
 {
+    private static final String moduleName = Robot.class.getSimpleName();
+    private static final double STATUS_UPDATE_INTERVAL = 0.1;   // 100 msec
     //
     // Global objects.
     //
-    public FtcOpMode opMode;
-    public FtcDashboard dashboard;
-    public TrcDbgTrace globalTracer;
+    public final FtcOpMode opMode;
+    public final TrcDbgTrace globalTracer;
+    public final FtcDashboard dashboard;
     public static FtcMatchInfo matchInfo = null;
     private static TrcPose2D endOfAutoRobotPose = null;
+    private static double nextStatusUpdateTime = 0.0;
     //
     // Vision subsystems.
     //
@@ -77,8 +81,9 @@ public class Robot
         // Initialize global objects.
         //
         opMode = FtcOpMode.getInstance();
-        dashboard = FtcDashboard.getInstance();
         globalTracer = TrcDbgTrace.getGlobalTracer();
+        dashboard = FtcDashboard.getInstance();
+        nextStatusUpdateTime = TrcTimer.getCurrentTime();
 
         speak("Init starting");
         //
@@ -89,13 +94,13 @@ public class Robot
             RobotParams.Preferences.useColorBlobVision ||
             RobotParams.Preferences.useTensorFlowVision)
         {
-            vision = new Vision(this, null);
+            vision = new Vision(this);
         }
         //
-        // If noRobot is true, the robot controller is disconnected from the robot for testing vision.
+        // If robotType is NoRobot, the robot controller is disconnected from the robot for testing vision.
         // In this case, we should not instantiate any robot hardware.
         //
-        if (!RobotParams.Preferences.noRobot)
+        if (RobotParams.Preferences.robotType != RobotParams.RobotType.NoRobot)
         {
             //
             // Create and initialize sensors and indicators.
@@ -112,7 +117,9 @@ public class Robot
             //
             // Create and initialize RobotDrive.
             //
-            robotDrive = RobotParams.Preferences.swerveRobot? new SwerveDrive(): new MecanumDrive();
+            robotDrive =
+                RobotParams.Preferences.robotType == RobotParams.RobotType.SwerveRobot?
+                    new SwerveDrive(): new MecanumDrive();
             //
             // Create and initialize other subsystems.
             //
@@ -143,8 +150,6 @@ public class Robot
      */
     public void startMode(TrcRobot.RunMode runMode)
     {
-        final String funcName = "startMode";
-
         if (robotDrive != null)
         {
             //
@@ -161,26 +166,13 @@ public class Robot
             // Enable odometry for all opmodes. We may need odometry in TeleOp for auto-assist drive.
             //
             robotDrive.driveBase.setOdometryEnabled(true);
-            if (runMode != TrcRobot.RunMode.AUTO_MODE)
+            if (runMode == TrcRobot.RunMode.TELEOP_MODE)
             {
-                // In TeleOp or Test mode. If we are not running a competition match, autonomous may not have run
-                // prior to this. Therefore, we cannot inherit the robot position from previous autonomous mode.
-                // In this case, we will just assume previous robot start position.
                 if (endOfAutoRobotPose != null)
                 {
                     // We had a previous autonomous run that saved the robot position at the end, use it.
                     robotDrive.driveBase.setFieldPosition(endOfAutoRobotPose);
-                    globalTracer.traceInfo(funcName, "Restore saved RobotPose=%s", endOfAutoRobotPose);
-                }
-                else
-                {
-                    // There was no saved robotPose, use previous autonomous start position. In case we didn't even
-                    // have a previous autonomous run (e.g. just powering up the robot and go into TeleOp), then we
-                    // will default to starting position of the AutoChoices default.
-                    setRobotStartPosition(FtcAuto.autoChoices);
-                    globalTracer.traceInfo(
-                        funcName, "No saved RobotPose, use autoChoiceStartPos=%s",
-                        robotDrive.driveBase.getFieldPosition());
+                    globalTracer.traceInfo(moduleName, "Restore saved RobotPose=" + endOfAutoRobotPose);
                 }
             }
             // Consume it so it's no longer valid for next run.
@@ -199,7 +191,6 @@ public class Robot
      */
     public void stopMode(TrcRobot.RunMode runMode)
     {
-        final String funcName = "stopMode";
         //
         // Print all performance counters if there are any.
         //
@@ -221,33 +212,34 @@ public class Robot
         {
             if (vision.rawColorBlobVision != null)
             {
-                globalTracer.traceInfo(funcName, "Disabling RawColorBlobVision.");
+                globalTracer.traceInfo(moduleName, "Disabling RawColorBlobVision.");
                 vision.setRawColorBlobVisionEnabled(false);
             }
 
             if (vision.aprilTagVision != null)
             {
-                globalTracer.traceInfo(funcName, "Disabling AprilTagVision.");
+                globalTracer.traceInfo(moduleName, "Disabling AprilTagVision.");
                 vision.setAprilTagVisionEnabled(false);
             }
 
             if (vision.redBlobVision != null)
             {
-                globalTracer.traceInfo(funcName, "Disabling RedBlobVision.");
+                globalTracer.traceInfo(moduleName, "Disabling RedBlobVision.");
                 vision.setRedBlobVisionEnabled(false);
             }
 
             if (vision.blueBlobVision != null)
             {
-                globalTracer.traceInfo(funcName, "Disabling BlueBlobVision.");
+                globalTracer.traceInfo(moduleName, "Disabling BlueBlobVision.");
                 vision.setBlueBlobVisionEnabled(false);
             }
 
             if (vision.tensorFlowVision != null)
             {
-                globalTracer.traceInfo(funcName, "Disabling TensorFlowVision.");
+                globalTracer.traceInfo(moduleName, "Disabling TensorFlowVision.");
                 vision.setTensorFlowVisionEnabled(false);
             }
+            vision.close();
        }
 
         if (robotDrive != null)
@@ -256,7 +248,7 @@ public class Robot
             {
                 // Save current robot location at the end of autonomous so subsequent teleop run can restore it.
                 endOfAutoRobotPose = robotDrive.driveBase.getFieldPosition();
-                globalTracer.traceInfo(funcName, "Saved robot pose=%s", endOfAutoRobotPose);
+                globalTracer.traceInfo(moduleName, "Saved robot pose=" + endOfAutoRobotPose);
             }
             //
             // Disable odometry.
@@ -277,6 +269,19 @@ public class Robot
      */
     public void updateStatus()
     {
+        if (TrcTimer.getCurrentTime() > nextStatusUpdateTime)
+        {
+            int lineNum = 2;
+
+            nextStatusUpdateTime += STATUS_UPDATE_INTERVAL;
+            if (robotDrive != null)
+            {
+                dashboard.displayPrintf(lineNum++, "DriveBase: Pose=%s", robotDrive.driveBase.getFieldPosition());
+            }
+            //
+            // Display other subsystem status here.
+            //
+        }
     }   //updateStatus
 
     /**

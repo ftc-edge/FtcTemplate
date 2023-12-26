@@ -40,17 +40,28 @@ import TrcFtcLib.ftclib.FtcGamepad;
  */
 public class RobotParams
 {
+    public static enum RobotType
+    {
+        MecanumRobot,
+        SwerveRobot,
+        NoRobot
+    }   //RobotType
+
     /**
      * This class contains robot preferences. It controls enabling/disabling of various robot features.
      */
     public static class Preferences
     {
+        // Global config
+        public static RobotType robotType = RobotType.MecanumRobot;
+        public static boolean inCompetition = false;
+
         // Miscellaneous
         public static boolean useTraceLog = true;
         public static boolean useLoopPerformanceMonitor = true;
         public static boolean useBlinkin = false;
         public static boolean useBatteryMonitor = false;
-        public static boolean doStatusUpdate = true;
+        public static boolean doStatusUpdate = !inCompetition;
         // Vision
         public static boolean useWebCam = true;
         public static boolean hasWebCam2 = false;
@@ -59,14 +70,11 @@ public class RobotParams
         public static boolean useAprilTagVision = false;
         public static boolean useColorBlobVision = false;
         public static boolean useTensorFlowVision = false;
-        public static boolean showVisionView = true;
-        // Robot
-        public static boolean noRobot = false;
-        public static boolean swerveRobot = false;
-        public static boolean swerveDualServoSteering = true;
+        public static boolean showVisionView = !inCompetition;
         // Drive Base
         public static boolean useExternalOdometry = false;
         public static boolean doSwervePhysicalAlignment = false;
+        public static boolean swerveDualServoSteering = true;
         // Subsystems
         public static boolean useSubsystems = false;
     }   //class Preferences
@@ -125,7 +133,6 @@ public class RobotParams
         new TrcPose2D(0.0, 0.0, 0.0),   // TagId 3
         new TrcPose2D(0.0, 0.0, 0.0)    // TagId 4
     };
-
     //
     // Vision subsystem.
     //
@@ -133,10 +140,11 @@ public class RobotParams
     public static final int CAM_IMAGE_HEIGHT                    = 480;
     public static final OpenCvCameraRotation CAM_ORIENTATION    = OpenCvCameraRotation.UPRIGHT;
     // Camera location on robot.
-    public static final double CAM_FRONT_OFFSET                 = 2.000;//Camera offset from front of robot in inches
-    public static final double CAM_LEFT_OFFSET                  = 7.125;//Camera offset from left of robot in inches
-    public static final double CAM_HEIGHT_OFFSET                = 3.750;//Camera offset from floor in inches
+    public static final double CAM_X_OFFSET                     = 0.0;  //Camera right offset from robot centroid
+    public static final double CAM_Y_OFFSET                     = 2.0;  //Camera forward offset from robot centroid
+    public static final double CAM_Z_OFFSET                     = 9.75; //Camera height offset from floor
     public static final double CAM_TILT_DOWN                    = 15.00;//Camera tilt down angle from horizontal in deg
+    public static final TrcPose2D CAM_POSE                      = new TrcPose2D(CAM_X_OFFSET, CAM_Y_OFFSET, 0.0);
 //    // Camera: Micorosoft Lifecam HD 3000 v1/v2
 //    public static final double WEBCAM_FX                        = 678.154;  // in pixels
 //    public static final double WEBCAM_FY                        = 678.170;  // in pixels
@@ -169,13 +177,13 @@ public class RobotParams
     public static final double HOMOGRAPHY_CAMERA_BOTTOMRIGHT_Y  = CAM_IMAGE_HEIGHT - 1;
     // Measurement unit: inches
     public static final double HOMOGRAPHY_WORLD_TOPLEFT_X       = -12.5625;
-    public static final double HOMOGRAPHY_WORLD_TOPLEFT_Y       = 48.0 - ROBOT_LENGTH + CAM_FRONT_OFFSET;
+    public static final double HOMOGRAPHY_WORLD_TOPLEFT_Y       = 48.0 - ROBOT_LENGTH/2.0 - CAM_Y_OFFSET;
     public static final double HOMOGRAPHY_WORLD_TOPRIGHT_X      = 11.4375;
-    public static final double HOMOGRAPHY_WORLD_TOPRIGHT_Y      = 44.75 - ROBOT_LENGTH + CAM_FRONT_OFFSET;
+    public static final double HOMOGRAPHY_WORLD_TOPRIGHT_Y      = 44.75 - ROBOT_LENGTH/2.0 - CAM_Y_OFFSET;
     public static final double HOMOGRAPHY_WORLD_BOTTOMLEFT_X    = -2.5625;
-    public static final double HOMOGRAPHY_WORLD_BOTTOMLEFT_Y    = 21.0 - ROBOT_LENGTH + CAM_FRONT_OFFSET;
+    public static final double HOMOGRAPHY_WORLD_BOTTOMLEFT_Y    = 21.0 - ROBOT_LENGTH/2.0 - CAM_Y_OFFSET;
     public static final double HOMOGRAPHY_WORLD_BOTTOMRIGHT_X   = 2.5626;
-    public static final double HOMOGRAPHY_WORLD_BOTTOMRIGHT_Y   = 21.0 - ROBOT_LENGTH + CAM_FRONT_OFFSET;
+    public static final double HOMOGRAPHY_WORLD_BOTTOMRIGHT_Y   = 21.0 - ROBOT_LENGTH/2.0 + CAM_Y_OFFSET;
 
     public static final TrcHomographyMapper.Rectangle cameraRect = new TrcHomographyMapper.Rectangle(
         RobotParams.HOMOGRAPHY_CAMERA_TOPLEFT_X, RobotParams.HOMOGRAPHY_CAMERA_TOPLEFT_Y,
@@ -224,20 +232,24 @@ public class RobotParams
     public static final double STEER_SERVO_IZONE                = 0.0;
     public static final double STEER_SERVO_TOLERANCE            = 0.5;
 
-    public static final TrcPidController.PidCoefficients DRIVE_POSPID_COEFFS =
-        new TrcPidController.PidCoefficients(0.0, 0.0, 0.0, 1.0);
-    public static final TrcPidController.PidCoefficients DRIVE_VELPID_COEFFS =
-        new TrcPidController.PidCoefficients(1.0, 0.0, 0.0, 0.0);
     public static final boolean DRIVE_WHEEL_BRAKE_MODE_ON       = true;
     public static final double TURN_POWER_LIMIT                 = 0.5;
     public static final double DRIVE_POWER_SCALE_SLOW           = 0.5;
     public static final double DRIVE_POWER_SCALE_NORMAL         = 1.0;
     public static final double TURN_POWER_SCALE_SLOW            = 0.5;
     public static final double TURN_POWER_SCALE_NORMAL          = 1.0;
-    public static final double X_ODOMETRY_WHEEL_OFFSET          = ROBOT_LENGTH/2.0 - (3.875 + 9.5); //behind centroid
-    public static final double Y_LEFT_ODOMETRY_WHEEL_OFFSET     = -15.25/2.0;
-    public static final double Y_RIGHT_ODOMETRY_WHEEL_OFFSET    = 15.25/2.0;
-    public static final FtcGamepad.DriveMode ROBOT_DRIVE_MODE   = FtcGamepad.DriveMode.HOLONOMIC_MODE;
+    // Optii Odometry Wheel:
+    public static final double ODWHEEL_DIAMETER                 = 35.0 * TrcUtil.INCHES_PER_MM;
+    public static final double ODWHEEL_CPR                      = 4096.0;
+    public static final double ODWHEEL_INCHES_PER_COUNT         = Math.PI*ODWHEEL_DIAMETER/ODWHEEL_CPR;
+    // Scale = 0.00105687652708656383937269814237 inches/count
+    public static final double YLEFT_ODWHEEL_X_OFFSET           = -144.0 * TrcUtil.INCHES_PER_MM;
+    public static final double YLEFT_ODWHEEL_Y_OFFSET           = -12.0 * TrcUtil.INCHES_PER_MM;
+    public static final double YRIGHT_ODWHEEL_X_OFFSET           = 144.0 * TrcUtil.INCHES_PER_MM;
+    public static final double YRIGHT_ODWHEEL_Y_OFFSET          = -12.0 * TrcUtil.INCHES_PER_MM;
+    public static final double X_ODWHEEL_X_OFFSET               = 0.0;
+    public static final double X_ODWHEEL_Y_OFFSET               = -168.0 * TrcUtil.INCHES_PER_MM;
+    public static final FtcGamepad.DriveMode ROBOT_DRIVE_MODE   = FtcGamepad.DriveMode.ARCADE_MODE;
     //
     // Velocity controlled constants.
     //
@@ -258,13 +270,7 @@ public class RobotParams
     public static final TrcPidController.PidCoefficients turnPidCoeff =
         new TrcPidController.PidCoefficients(0.02, 0.08, 0.003, 0.0, 30.0);
     public static final double TURN_TOLERANCE                   = 1.0;
-    public static final double TURN_SETTLING                    = TrcPidController.DEF_SETTLING_TIME;
-    public static final double TURN_STEADY_STATE_ERR            = 2.0;
-    public static final double TURN_STALL_ERRRATE_THRESHOLD     = 1.0;
     public static final Double TURN_RAMP_RATE                   = null;//10.0;
-
-    public static final double X_ODWHEEL_INCHES_PER_COUNT       = 7.6150160901199168116026724971383e-4;
-    public static final double Y_ODWHEEL_INCHES_PER_COUNT       = 7.6301149255006038191364659148717e-4;
     //
     // Pure Pursuit parameters.
     //
@@ -275,12 +281,14 @@ public class RobotParams
     // = 3.1415926535897932384626433832795 * 4 in. * 1.0 * 312.0 / 60.0
     // = 65.345127194667699360022982372214 in./sec.
     public static final double ROBOT_MAX_VELOCITY               = 23.0;     // measured maximum from drive speed test.
-    public static final double ROBOT_MAX_ACCELERATION           = 3000.0;   // measured maximum from drive speed test.
+    public static final double ROBOT_MAX_ACCELERATION           = 500.0;    // measured maximum from drive speed test.
     // KF should be set to the reciprocal of max tangential velocity (time to travel unit distance), units: sec./in.
     public static final TrcPidController.PidCoefficients velPidCoeff  =
         new TrcPidController.PidCoefficients(0.0, 0.0, 0.0, 1.0/ROBOT_MAX_VELOCITY);
     public static final double PPD_FOLLOWING_DISTANCE           = 6.0;
-    public static final double PPD_POS_TOLERANCE                = 2.0;
+    public static final double PPD_POS_TOLERANCE                = 1.0;
+    public static final double PPD_POS_ERR_RATE_THRESHOLD       = 1.0;
     public static final double PPD_TURN_TOLERANCE               = 1.0;
+    public static final double PPD_TURN_ERR_RATE_THRESHOLD      = 1.0;
 
 }   //class RobotParams
