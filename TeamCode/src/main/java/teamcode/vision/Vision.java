@@ -161,7 +161,7 @@ public class Vision
 
             if (RobotParams.Preferences.useColorBlobVision)
             {
-                robot.globalTracer.traceInfo(moduleName, "Starting ColorBlobVision...");
+                tracer.traceInfo(moduleName, "Starting ColorBlobVision...");
 
                 redBlobVision = new FtcVisionEocvColorBlob(
                     "RedBlob", colorConversion, redBlobColorThresholds, colorBlobFilterContourParams, true,
@@ -178,7 +178,7 @@ public class Vision
 
             if (RobotParams.Preferences.useTensorFlowVision)
             {
-                robot.globalTracer.traceInfo(moduleName, "Starting TensorFlowVision...");
+                tracer.traceInfo(moduleName, "Starting TensorFlowVision...");
                 tensorFlowVision = new FtcVisionTensorFlow(
                     null, true, TFOD_MODEL_ASSET, TFOD_TARGET_LABELS, RobotParams.cameraRect, RobotParams.worldRect);
                 tensorFlowProcessor = tensorFlowVision.getVisionProcessor();
