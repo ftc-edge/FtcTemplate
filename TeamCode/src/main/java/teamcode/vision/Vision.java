@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import TrcCommonLib.trclib.TrcDbgTrace;
 import TrcCommonLib.trclib.TrcOpenCvColorBlobPipeline;
 import TrcCommonLib.trclib.TrcOpenCvDetector;
+import TrcCommonLib.trclib.TrcPose2D;
 import TrcCommonLib.trclib.TrcVisionTargetInfo;
 import TrcFtcLib.ftclib.FtcEocvColorBlobProcessor;
 import TrcFtcLib.ftclib.FtcOpMode;
@@ -58,30 +59,32 @@ import teamcode.subsystems.BlinkinLEDs;
  */
 public class Vision
 {
-    private static final String moduleName = "Vision";
+    private static final String moduleName = Vision.class.getSimpleName();
     // Warning: EOCV converts camera stream to RGBA whereas Desktop OpenCV converts it to BGRA. Therefore, the correct
     // color conversion must be RGBA (or RGB) to whatever color space you want to convert.
     //
     // YCrCb Color Space.
     private static final int colorConversion = Imgproc.COLOR_RGB2YCrCb;
-    private static final double[] redBlobColorThresholds = {20.0, 120.0, 180.0, 220.0, 90.0, 120.0};
-    private static final double[] blueBlobColorThresholds = {40.0, 140.0, 100.0, 150.0, 150.0, 200.0};
+    private static final double[] redBlobColorThresholds = {20.0, 120.0, 180.0, 240.0, 90.0, 120.0};
+    private static final double[] blueBlobColorThresholds = {20.0, 250.0, 40.0, 250.0, 160.0, 240.0};
     private static final TrcOpenCvColorBlobPipeline.FilterContourParams colorBlobFilterContourParams =
         new TrcOpenCvColorBlobPipeline.FilterContourParams()
-            .setMinArea(1000.0)
-            .setMinPerimeter(100.0)
-            .setWidthRange(10.0, 1000.0)
-            .setHeightRange(10.0, 1000.0)
+            .setMinArea(5000.0)
+            .setMinPerimeter(200.0)
+            .setWidthRange(50.0, 1000.0)
+            .setHeightRange(80.0, 1000.0)
             .setSolidityRange(0.0, 100.0)
             .setVerticesRange(0.0, 1000.0)
-            .setAspectRatioRange(0.5, 2.0);
+            .setAspectRatioRange(0.3, 1.0);
 
     private static final String TFOD_MODEL_ASSET = "MyObject.tflite";
     private static final float TFOD_MIN_CONFIDENCE = 0.75f;
     public static final String TFOD_OBJECT_LABEL = "MyObject";
     public static final String[] TFOD_TARGET_LABELS = {TFOD_OBJECT_LABEL};
 
+    private final TrcDbgTrace tracer;
     private final Robot robot;
+    private final WebcamName webcam1, webcam2;
     private FtcRawEocvColorBlobPipeline rawColorBlobPipeline;
     public FtcRawEocvVision rawColorBlobVision;
     public FtcVisionAprilTag aprilTagVision;
@@ -92,50 +95,47 @@ public class Vision
     private FtcEocvColorBlobProcessor blueBlobProcessor;
     public FtcVisionTensorFlow tensorFlowVision;
     private TfodProcessor tensorFlowProcessor;
-    private WebcamName webcamName1;
-    private WebcamName webcamName2;
-    private WebcamName activeCamera;
-    private FtcVision vision;
+    public FtcVision vision;
 
     /**
      * Constructor: Create an instance of the object.
      *
      * @param robot specifies the robot object.
-     * @param tracer specifies the tracer for trace info, null if none provided.
      */
-    public Vision(Robot robot, TrcDbgTrace tracer)
+    public Vision(Robot robot)
     {
         FtcOpMode opMode = FtcOpMode.getInstance();
 
+        this.tracer = new TrcDbgTrace();
         this.robot = robot;
+        this.webcam1 = opMode.hardwareMap.get(WebcamName.class, RobotParams.HWNAME_WEBCAM1);
+        this.webcam2 = RobotParams.Preferences.hasWebCam2?
+            opMode.hardwareMap.get(WebcamName.class, RobotParams.HWNAME_WEBCAM2): null;
         if (RobotParams.Preferences.tuneColorBlobVision)
         {
-            OpenCvCamera webcam;
+            OpenCvCamera openCvCamera;
 
             if (RobotParams.Preferences.showVisionView)
             {
                 int cameraViewId = opMode.hardwareMap.appContext.getResources().getIdentifier(
                     "cameraMonitorViewId", "id", opMode.hardwareMap.appContext.getPackageName());
-                webcam = OpenCvCameraFactory.getInstance().createWebcam(
-                    opMode.hardwareMap.get(WebcamName.class, RobotParams.HWNAME_WEBCAM1), cameraViewId);
-                webcam.showFpsMeterOnViewport(false);
+                openCvCamera = OpenCvCameraFactory.getInstance().createWebcam(webcam1, cameraViewId);
             }
             else
             {
-                webcam = OpenCvCameraFactory.getInstance().createWebcam(
-                    opMode.hardwareMap.get(WebcamName.class, RobotParams.HWNAME_WEBCAM1));
+                openCvCamera = OpenCvCameraFactory.getInstance().createWebcam(webcam1);
             }
 
-            robot.globalTracer.traceInfo(moduleName, "Starting RawEocvColorBlobVision...");
+            tracer.traceInfo(moduleName, "Starting RawEocvColorBlobVision...");
             rawColorBlobPipeline = new FtcRawEocvColorBlobPipeline(
-                "rawColorBlobPipeline", colorConversion, redBlobColorThresholds, colorBlobFilterContourParams,
-                tracer);
+                "rawColorBlobPipeline", colorConversion, redBlobColorThresholds, colorBlobFilterContourParams, true);
             // By default, display original Mat.
             rawColorBlobPipeline.setVideoOutput(0);
             rawColorBlobPipeline.setAnnotateEnabled(true);
             rawColorBlobVision = new FtcRawEocvVision(
                 "rawColorBlobVision", RobotParams.CAM_IMAGE_WIDTH, RobotParams.CAM_IMAGE_HEIGHT, null, null,
-                webcam, RobotParams.CAM_ORIENTATION, tracer);
+                openCvCamera, RobotParams.CAM_ORIENTATION);
+            rawColorBlobVision.setFpsMeterEnabled(RobotParams.Preferences.showVisionStat);
             setRawColorBlobVisionEnabled(false);
         }
         else
@@ -145,43 +145,42 @@ public class Vision
 
             if (RobotParams.Preferences.useAprilTagVision)
             {
-                robot.globalTracer.traceInfo(moduleName, "Starting AprilTagVision...");
+                tracer.traceInfo(moduleName, "Starting AprilTagVision...");
                 FtcVisionAprilTag.Parameters aprilTagParams = new FtcVisionAprilTag.Parameters()
                     .setDrawTagIdEnabled(true)
                     .setDrawTagOutlineEnabled(true)
                     .setDrawAxesEnabled(false)
                     .setDrawCubeProjectionEnabled(false)
-                    .setLensIntrinsics(
-                        RobotParams.WEBCAM_FX, RobotParams.WEBCAM_FY, RobotParams.WEBCAM_CX, RobotParams.WEBCAM_CY)
+//                    .setLensIntrinsics(
+//                        RobotParams.WEBCAM_FX, RobotParams.WEBCAM_FY, RobotParams.WEBCAM_CX, RobotParams.WEBCAM_CY)
                     .setOutputUnits(DistanceUnit.INCH, AngleUnit.DEGREES);
-                aprilTagVision = new FtcVisionAprilTag(aprilTagParams, AprilTagProcessor.TagFamily.TAG_36h11, tracer);
+                aprilTagVision = new FtcVisionAprilTag(aprilTagParams, AprilTagProcessor.TagFamily.TAG_36h11);
                 aprilTagProcessor = aprilTagVision.getVisionProcessor();
                 visionProcessorsList.add(aprilTagProcessor);
             }
 
             if (RobotParams.Preferences.useColorBlobVision)
             {
-                robot.globalTracer.traceInfo(moduleName, "Starting ColorBlobVision...");
+                tracer.traceInfo(moduleName, "Starting ColorBlobVision...");
 
                 redBlobVision = new FtcVisionEocvColorBlob(
-                    "RedBlob", colorConversion, redBlobColorThresholds, colorBlobFilterContourParams,
-                    RobotParams.cameraRect, RobotParams.worldRect, true, tracer);
+                    "RedBlob", colorConversion, redBlobColorThresholds, colorBlobFilterContourParams, true,
+                    RobotParams.cameraRect, RobotParams.worldRect, true);
                 redBlobProcessor = redBlobVision.getVisionProcessor();
                 visionProcessorsList.add(redBlobProcessor);
 
                 blueBlobVision = new FtcVisionEocvColorBlob(
-                    "BlueBlob", colorConversion, blueBlobColorThresholds, colorBlobFilterContourParams,
-                    RobotParams.cameraRect, RobotParams.worldRect, true, tracer);
+                    "BlueBlob", colorConversion, blueBlobColorThresholds, colorBlobFilterContourParams, true,
+                    RobotParams.cameraRect, RobotParams.worldRect, true);
                 blueBlobProcessor = blueBlobVision.getVisionProcessor();
                 visionProcessorsList.add(blueBlobProcessor);
             }
 
             if (RobotParams.Preferences.useTensorFlowVision)
             {
-                robot.globalTracer.traceInfo(moduleName, "Starting TensorFlowVision...");
+                tracer.traceInfo(moduleName, "Starting TensorFlowVision...");
                 tensorFlowVision = new FtcVisionTensorFlow(
-                    null, true, TFOD_MODEL_ASSET, TFOD_TARGET_LABELS, RobotParams.cameraRect, RobotParams.worldRect,
-                    tracer);
+                    null, true, TFOD_MODEL_ASSET, TFOD_TARGET_LABELS, RobotParams.cameraRect, RobotParams.worldRect);
                 tensorFlowProcessor = tensorFlowVision.getVisionProcessor();
                 tensorFlowProcessor.setMinResultConfidence(TFOD_MIN_CONFIDENCE);
                 visionProcessorsList.add(tensorFlowProcessor);
@@ -191,45 +190,113 @@ public class Vision
             visionProcessorsList.toArray(visionProcessors);
             if (RobotParams.Preferences.useWebCam)
             {
-                webcamName1 = opMode.hardwareMap.get(WebcamName.class, RobotParams.HWNAME_WEBCAM1);
-                webcamName2 =
-                    RobotParams.Preferences.hasWebCam2 ?
-                        opMode.hardwareMap.get(WebcamName.class, RobotParams.HWNAME_WEBCAM2) : null;
+                // Use USB webcams.
                 vision = new FtcVision(
-                    webcamName1, webcamName2, RobotParams.CAM_IMAGE_WIDTH, RobotParams.CAM_IMAGE_HEIGHT,
-                    RobotParams.Preferences.showVisionView, visionProcessors);
-                // Initialize the active camera to webcamName1.
-                switchActiveCamera();
+                    webcam1, webcam2, RobotParams.CAM_IMAGE_WIDTH, RobotParams.CAM_IMAGE_HEIGHT,
+                    RobotParams.Preferences.showVisionView, RobotParams.Preferences.showVisionStat, visionProcessors);
             }
             else
             {
+                // Use phone camera.
                 vision = new FtcVision(
                     RobotParams.Preferences.useBuiltinCamBack?
                         BuiltinCameraDirection.BACK: BuiltinCameraDirection.FRONT,
                     RobotParams.CAM_IMAGE_WIDTH, RobotParams.CAM_IMAGE_HEIGHT,
-                    RobotParams.Preferences.showVisionView, visionProcessors);
+                    RobotParams.Preferences.showVisionView, RobotParams.Preferences.showVisionStat, visionProcessors);
             }
-            // Disable all vision processors until they are needed.
-            setRawColorBlobVisionEnabled(false);
-            setAprilTagVisionEnabled(false);
-            setRedBlobVisionEnabled(false);
-            setBlueBlobVisionEnabled(false);
-            setTensorFlowVisionEnabled(false);
+            // Disable all vision until they are needed.
+            for (VisionProcessor processor: visionProcessors)
+            {
+                vision.setProcessorEnabled(processor, false);
+            }
         }
     }   //Vision
 
     /**
-     * This method switches between the two webcams.
+     * This method closes the vision portal and is normally called at the end of an opmode.
      */
-    public void switchActiveCamera()
+    public void close()
     {
-        // Only do this if we have two webcams.
-        if (webcamName1 != null && webcamName2 != null)
+        if (vision != null)
         {
-            activeCamera = activeCamera == null || activeCamera == webcamName2? webcamName1: webcamName2;
-            vision.getVisionPortal().setActiveCamera(activeCamera);
+            vision.getVisionPortal().close();
         }
-    }   //switchActiveCamera
+    }   //close
+
+    /**
+     * This method enables/disables FPS meter on the viewport.
+     *
+     * @param enabled specifies true to enable FPS meter, false to disable.
+     */
+    public void setFpsMeterEnabled(boolean enabled)
+    {
+        if (rawColorBlobVision != null)
+        {
+            rawColorBlobVision.setFpsMeterEnabled(enabled);
+        }
+        else if (vision != null)
+        {
+            vision.setFpsMeterEnabled(enabled);
+        }
+    }   //setFpsMeterEnabled
+
+    /**
+     * This method returns the front webcam.
+     *
+     * @return front webcam.
+     */
+    public WebcamName getFrontWebcam()
+    {
+        return webcam1;
+    }   //getFrontWebcam
+
+    /**
+     * This method returns the rear webcam.
+     *
+     * @return rear webcam.
+     */
+    public WebcamName getRearWebcam()
+    {
+        return webcam2;
+    }   //getRearWebcam
+
+    /**
+     * This method returns the active camera if we have two webcams.
+     *
+     * @return active camera.
+     */
+    public WebcamName getActiveWebcam()
+    {
+        return vision.getActiveWebcam();
+    }   //getActiveWebcam
+
+    /**
+     * This method sets the active webcam.
+     *
+     * @param webcam specifies the webcam to be set as active.
+     */
+    public void setActiveWebcam(WebcamName webcam)
+    {
+        vision.setActiveWebcam(webcam);
+    }   //setActiveWebcam
+
+    /**
+     * This method displays the exposure settings on the dashboard. This helps tuning camera exposure.
+     *
+     * @param lineNum specifies the dashboard line number to display the info.
+     */
+    public void displayExposureSettings(int lineNum)
+    {
+        long[] exposureSetting = vision.getExposureSetting();
+        long currExposure = vision.getCurrentExposure();
+        int[] gainSetting = vision.getGainSetting();
+        int currGain = vision.getCurrentGain();
+
+        robot.dashboard.displayPrintf(
+            lineNum, "Exp: %d (%d:%d), Gain: %d (%d:%d)",
+            currExposure, exposureSetting[0], exposureSetting[1],
+            currGain, gainSetting != null? gainSetting[0]: 0, gainSetting != null? gainSetting[1]: 0);
+    }   //displayExposureSettings
 
     /**
      * This method returns the color threshold values of rawColorBlobVision.
@@ -291,7 +358,8 @@ public class Vision
 
         if (lineNum != -1)
         {
-            robot.dashboard.displayPrintf(lineNum, "ColorBlob: %s", colorBlobInfo != null? colorBlobInfo: "Not found.");
+            robot.dashboard.displayPrintf(
+                lineNum, "RawColorBlob: %s", colorBlobInfo != null? colorBlobInfo: "Not found.");
         }
 
         return colorBlobInfo;
@@ -330,7 +398,7 @@ public class Vision
     public TrcVisionTargetInfo<FtcVisionAprilTag.DetectedObject> getDetectedAprilTag(Integer id, int lineNum)
     {
         TrcVisionTargetInfo<FtcVisionAprilTag.DetectedObject> aprilTagInfo =
-            robot.vision.aprilTagVision.getBestDetectedTargetInfo(id, null);
+            aprilTagVision.getBestDetectedTargetInfo(id, null);
 
         if (aprilTagInfo != null && robot.blinkin != null)
         {
@@ -339,11 +407,63 @@ public class Vision
 
         if (lineNum != -1)
         {
-            robot.dashboard.displayPrintf(lineNum, "AprilTag: %s", aprilTagInfo != null? aprilTagInfo: "Not found.");
+            robot.dashboard.displayPrintf(
+                lineNum, "%s: %s", BlinkinLEDs.APRIL_TAG, aprilTagInfo != null? aprilTagInfo : "Not found.");
         }
 
         return aprilTagInfo;
     }   //getDetectedAprilTag
+
+    /**
+     * This method calculates the robot's absolute field location with the detected AprilTagInfo.
+     *
+     * @param aprilTagInfo specifies the detected AprilTag info.
+     * @return robot field location.
+     */
+    public TrcPose2D getRobotFieldPose(TrcVisionTargetInfo<FtcVisionAprilTag.DetectedObject> aprilTagInfo)
+    {
+        TrcPose2D robotPose = null;
+
+        if (aprilTagInfo != null)
+        {
+            TrcPose2D aprilTagPose = RobotParams.APRILTAG_POSES[aprilTagInfo.detectedObj.aprilTagDetection.id - 1];
+            TrcPose2D cameraPose = aprilTagPose.subtractRelativePose(aprilTagInfo.objPose);
+            robotPose = cameraPose.subtractRelativePose(RobotParams.CAM_POSE);
+            tracer.traceInfo(
+                moduleName,
+                "AprilTagId=" + aprilTagInfo.detectedObj.aprilTagDetection.id +
+                ", aprilTagFieldPose=" + aprilTagPose +
+                ", aprilTagPoseFromCamera=" + aprilTagInfo.objPose +
+                ", cameraPose=" + cameraPose +
+                ", robotPose=%s" + robotPose);
+        }
+
+        return robotPose;
+    }   //getRobotFieldPose
+
+    /**
+     * This method uses vision to find an AprilTag and uses the AprilTag's absolute field location and its relative
+     * position from the camera to calculate the robot's absolute field location.
+     *
+     * @return robot field location.
+     */
+    public TrcPose2D getRobotFieldPose()
+    {
+        TrcPose2D robotPose = null;
+
+        if (aprilTagVision != null)
+        {
+            // Find any AprilTag in view.
+            TrcVisionTargetInfo<FtcVisionAprilTag.DetectedObject> aprilTagInfo = getDetectedAprilTag(null, -1);
+
+            if (aprilTagInfo != null)
+            {
+                robotPose = getRobotFieldPose(aprilTagInfo);
+            }
+        }
+
+        return robotPose;
+    }   //getRobotFieldPose
 
     /**
      * This method enables/disables RedBlob vision.
@@ -377,7 +497,7 @@ public class Vision
     public TrcVisionTargetInfo<TrcOpenCvColorBlobPipeline.DetectedObject> getDetectedRedBlob(int lineNum)
     {
         TrcVisionTargetInfo<TrcOpenCvColorBlobPipeline.DetectedObject> colorBlobInfo =
-            robot.vision.redBlobVision.getBestDetectedTargetInfo(null, null, 0.0, 0.0);
+            redBlobVision.getBestDetectedTargetInfo(null, null, 0.0, 0.0);
 
         if (colorBlobInfo != null && robot.blinkin != null)
         {
@@ -387,7 +507,7 @@ public class Vision
         if (lineNum != -1)
         {
             robot.dashboard.displayPrintf(
-                lineNum, "RedBlob: %s", colorBlobInfo != null? colorBlobInfo: "Not found.");
+                lineNum, "%s: %s", BlinkinLEDs.RED_BLOB, colorBlobInfo != null? colorBlobInfo: "Not found.");
         }
 
         return colorBlobInfo;
@@ -425,7 +545,7 @@ public class Vision
     public TrcVisionTargetInfo<TrcOpenCvColorBlobPipeline.DetectedObject> getDetectedBlueBlob(int lineNum)
     {
         TrcVisionTargetInfo<TrcOpenCvColorBlobPipeline.DetectedObject> colorBlobInfo =
-            robot.vision.blueBlobVision.getBestDetectedTargetInfo(null, null, 0.0, 0.0);
+            blueBlobVision.getBestDetectedTargetInfo(null, null, 0.0, 0.0);
 
         if (colorBlobInfo != null && robot.blinkin != null)
         {
@@ -435,7 +555,7 @@ public class Vision
         if (lineNum != -1)
         {
             robot.dashboard.displayPrintf(
-                lineNum, "GreenPixel: %s", colorBlobInfo != null? colorBlobInfo: "Not found.");
+                lineNum, "%s: %s", BlinkinLEDs.BLUE_BLOB, colorBlobInfo != null? colorBlobInfo: "Not found.");
         }
 
         return colorBlobInfo;
@@ -473,8 +593,7 @@ public class Vision
     public TrcVisionTargetInfo<FtcVisionTensorFlow.DetectedObject> getDetectedTensorFlowPixel(int lineNum)
     {
         TrcVisionTargetInfo<FtcVisionTensorFlow.DetectedObject> tensorFlowInfo =
-            robot.vision.tensorFlowVision.getBestDetectedTargetInfo(
-                TFOD_OBJECT_LABEL, null, this::compareConfidence, 0.0, 0.0);
+            tensorFlowVision.getBestDetectedTargetInfo(TFOD_OBJECT_LABEL, null, this::compareConfidence, 0.0, 0.0);
 
         if (tensorFlowInfo != null && robot.blinkin != null)
         {
@@ -484,11 +603,26 @@ public class Vision
         if (lineNum != -1)
         {
             robot.dashboard.displayPrintf(
-                lineNum, "TensorFlow: %s", tensorFlowInfo != null? tensorFlowInfo: "Not found.");
+                lineNum, "%s: %s", BlinkinLEDs.TENSOR_FLOW, tensorFlowInfo != null? tensorFlowInfo: "Not found.");
         }
 
         return tensorFlowInfo;
     }   //getDetectedTensorFlowPixel
+
+    /**
+     * This method is called by the Arrays.sort to sort the target object by increasing distance.
+     *
+     * @param a specifies the first target
+     * @param b specifies the second target.
+     * @return negative value if a has closer distance than b, 0 if a and b have equal distances, positive value
+     *         if a has higher distance than b.
+     */
+    private int compareDistance(
+        TrcVisionTargetInfo<TrcOpenCvColorBlobPipeline.DetectedObject> a,
+        TrcVisionTargetInfo<TrcOpenCvColorBlobPipeline.DetectedObject> b)
+    {
+        return (int)((b.objPose.y - a.objPose.y)*100);
+    }   //compareDistance
 
     /**
      * This method is called by the Arrays.sort to sort the target object by decreasing confidence.

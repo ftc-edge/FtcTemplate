@@ -28,8 +28,10 @@ import java.util.Locale;
 
 import TrcCommonLib.command.CmdPidDrive;
 import TrcCommonLib.command.CmdTimedDrive;
+import TrcCommonLib.trclib.TrcDbgTrace;
 import TrcCommonLib.trclib.TrcPose2D;
 import TrcCommonLib.trclib.TrcRobot;
+import TrcCommonLib.trclib.TrcTimer;
 import TrcFtcLib.ftclib.FtcChoiceMenu;
 import TrcFtcLib.ftclib.FtcMatchInfo;
 import TrcFtcLib.ftclib.FtcMenu;
@@ -42,6 +44,8 @@ import TrcFtcLib.ftclib.FtcValueMenu;
 @Autonomous(name="FtcAutonomous", group="Ftcxxxx")
 public class FtcAuto extends FtcOpMode
 {
+    private static final String moduleName = FtcAuto.class.getSimpleName();
+
     public enum Alliance
     {
         RED_ALLIANCE,
@@ -95,7 +99,6 @@ public class FtcAuto extends FtcOpMode
 
     }   //class AutoChoices
 
-    private static final String moduleName = "FtcAuto";
     public static final AutoChoices autoChoices = new AutoChoices();
     private Robot robot;
     private TrcRobot.RobotCommand autoCommand;
@@ -111,7 +114,6 @@ public class FtcAuto extends FtcOpMode
     @Override
     public void robotInit()
     {
-        final String funcName = "robotInit";
         //
         // Create and initialize robot object.
         //
@@ -124,7 +126,7 @@ public class FtcAuto extends FtcOpMode
             Robot.matchInfo = FtcMatchInfo.getMatchInfo();
             String filePrefix = String.format(
                 Locale.US, "%s%02d_Auto", Robot.matchInfo.matchType, Robot.matchInfo.matchNumber);
-            robot.globalTracer.openTraceLog(RobotParams.LOG_FOLDER_PATH, filePrefix);
+            TrcDbgTrace.openTraceLog(RobotParams.LOG_FOLDER_PATH, filePrefix);
         }
         //
         // Create and run choice menus.
@@ -136,7 +138,7 @@ public class FtcAuto extends FtcOpMode
         switch (autoChoices.strategy)
         {
             case PID_DRIVE:
-                if (!RobotParams.Preferences.noRobot)
+                if (RobotParams.Preferences.robotType != RobotParams.RobotType.NoRobot)
                 {
                     autoCommand = new CmdPidDrive(
                         robot.robotDrive.driveBase, robot.robotDrive.pidDrive, autoChoices.delay,
@@ -146,7 +148,7 @@ public class FtcAuto extends FtcOpMode
                 break;
 
             case TIMED_DRIVE:
-                if (!RobotParams.Preferences.noRobot)
+                if (RobotParams.Preferences.robotType != RobotParams.RobotType.NoRobot)
                 {
                     autoCommand = new CmdTimedDrive(
                         robot.robotDrive.driveBase, autoChoices.delay, autoChoices.driveTime,
@@ -166,25 +168,25 @@ public class FtcAuto extends FtcOpMode
             // Only enable the necessary vision for that purpose.
 //            if (robot.vision.aprilTagVision != null)
 //            {
-//                robot.globalTracer.traceInfo(funcName, "Enabling AprilTagVision.");
+//                robot.globalTracer.traceInfo(moduleName, "Enabling AprilTagVision.");
 //                robot.vision.setAprilTagVisionEnabled(true);
 //            }
 //
 //            if (robot.vision.redBlobVision != null)
 //            {
-//                robot.globalTracer.traceInfo(funcName, "Enabling RedBlobVision.");
+//                robot.globalTracer.traceInfo(moduleName, "Enabling RedBlobVision.");
 //                robot.vision.setRedBlobVisionEnabled(true);
 //            }
 //
 //            if (robot.vision.blueBlobVision != null)
 //            {
-//                robot.globalTracer.traceInfo(funcName, "Enabling BlueBlobVision.");
+//                robot.globalTracer.traceInfo(moduleName, "Enabling BlueBlobVision.");
 //                robot.vision.setBlueBlobVisionEnabled(true);
 //            }
 //
 //            if (robot.vision.tensorFlowVision != null)
 //            {
-//                robot.globalTracer.traceInfo(funcName, "Enabling TensorFlowVision.");
+//                robot.globalTracer.traceInfo(moduleName, "Enabling TensorFlowVision.");
 //                robot.vision.setTensorFlowVisionEnabled(true);
 //            }
         }
@@ -216,18 +218,17 @@ public class FtcAuto extends FtcOpMode
     @Override
     public void startMode(TrcRobot.RunMode prevMode, TrcRobot.RunMode nextMode)
     {
-        final String funcName = "startMode";
-
-        if (robot.globalTracer.isTraceLogOpened())
+        if (TrcDbgTrace.isTraceLogOpened())
         {
-            robot.globalTracer.setTraceLogEnabled(true);
+            TrcDbgTrace.setTraceLogEnabled(true);
         }
-        robot.globalTracer.traceInfo(moduleName, "***** Starting autonomous *****");
+        robot.globalTracer.traceInfo(
+            moduleName, "***** Starting autonomous: " + TrcTimer.getCurrentTimeString() + " *****");
         if (Robot.matchInfo != null)
         {
-            robot.globalTracer.logInfo(moduleName, "MatchInfo", "%s", Robot.matchInfo);
+            robot.globalTracer.logInfo(moduleName, "MatchInfo", Robot.matchInfo.toString());
         }
-        robot.globalTracer.logInfo(moduleName, "AutoChoices", "%s", autoChoices);
+        robot.globalTracer.logInfo(moduleName, "AutoChoices", autoChoices.toString());
         robot.dashboard.clearDisplay();
         //
         // Tell robot object opmode is about to start so it can do the necessary start initialization for the mode.
@@ -236,10 +237,10 @@ public class FtcAuto extends FtcOpMode
 
         if (robot.vision != null)
         {
-            // We are done with detecting signal with TensorFlow, shut it down.
+            // We are done with detecting object with TensorFlow, shut it down.
             if (robot.vision.tensorFlowVision != null)
             {
-                robot.globalTracer.traceInfo(funcName, "Disabling TensorFlowVision.");
+                robot.globalTracer.traceInfo(moduleName, "Disabling TensorFlowVision.");
                 robot.vision.setTensorFlowVisionEnabled(false);
             }
         }
@@ -277,12 +278,13 @@ public class FtcAuto extends FtcOpMode
             robot.battery.setEnabled(false);
         }
 
-        printPerformanceMetrics(robot.globalTracer);
-        robot.globalTracer.traceInfo(moduleName, "***** Stopping autonomous *****");
+        printPerformanceMetrics();
+        robot.globalTracer.traceInfo(
+            moduleName, "***** Stopping autonomous: " + TrcTimer.getCurrentTimeString() + " *****");
 
-        if (robot.globalTracer.isTraceLogOpened())
+        if (TrcDbgTrace.isTraceLogOpened())
         {
-            robot.globalTracer.closeTraceLog();
+            TrcDbgTrace.closeTraceLog();
         }
     }   //stopMode
 
@@ -315,8 +317,7 @@ public class FtcAuto extends FtcOpMode
         //
         // Construct menus.
         //
-        FtcValueMenu delayMenu = new FtcValueMenu(
-            "Start delay time:", null, 0.0, 30.0, 1.0, 0.0, " %.0f sec");
+        FtcValueMenu delayMenu = new FtcValueMenu("Delay time:", null, 0.0, 30.0, 1.0, 0.0, " %.0f sec");
         FtcChoiceMenu<Alliance> allianceMenu = new FtcChoiceMenu<>("Alliance:", delayMenu);
         FtcChoiceMenu<StartPos> startPosMenu = new FtcChoiceMenu<>("Start Position:", allianceMenu);
         FtcChoiceMenu<AutoStrategy> strategyMenu = new FtcChoiceMenu<>("Auto Strategies:", startPosMenu);
@@ -326,12 +327,13 @@ public class FtcAuto extends FtcOpMode
         FtcValueMenu yTargetMenu = new FtcValueMenu(
             "yTarget:", xTargetMenu, -12.0, 12.0, 0.5, 4.0, " %.1f ft");
         FtcValueMenu turnTargetMenu = new FtcValueMenu(
-            "turnTarget:", yTargetMenu, -180.0, 180.0, 5.0, 90.0, " %.0f ft");
+            "turnTarget:", yTargetMenu, -180.0, 180.0, 5.0, 90.0, " %.0f deg");
         FtcValueMenu driveTimeMenu = new FtcValueMenu(
             "Drive time:", strategyMenu, 0.0, 30.0, 1.0, 5.0, " %.0f sec");
         FtcValueMenu drivePowerMenu = new FtcValueMenu(
             "Drive power:", strategyMenu, -1.0, 1.0, 0.1, 0.5, " %.1f");
 
+        // Link Value Menus to their children.
         delayMenu.setChildMenu(allianceMenu);
         xTargetMenu.setChildMenu(yTargetMenu);
         yTargetMenu.setChildMenu(turnTargetMenu);
@@ -368,7 +370,7 @@ public class FtcAuto extends FtcOpMode
         //
         // Show choices.
         //
-        robot.dashboard.displayPrintf(2, "Auto Choices: %s", autoChoices);
+        robot.dashboard.displayPrintf(1, "Auto Choices: %s", autoChoices);
     }   //doAutoChoicesMenus
 
 }   //class FtcAuto

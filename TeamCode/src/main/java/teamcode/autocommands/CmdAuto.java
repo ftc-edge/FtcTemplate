@@ -34,7 +34,7 @@ import teamcode.Robot;
  */
 public class CmdAuto implements TrcRobot.RobotCommand
 {
-    private static final String moduleName = "CmdAuto";
+    private static final String moduleName = CmdAuto.class.getSimpleName();
 
     private enum State
     {

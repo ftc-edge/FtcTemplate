@@ -22,17 +22,12 @@
 
 package teamcode.drivebases;
 
-import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
-
-import org.opencv.core.Point;
-
 import TrcCommonLib.trclib.TrcDriveBase;
 import TrcCommonLib.trclib.TrcPidDrive;
-import TrcCommonLib.trclib.TrcPose2D;
 import TrcCommonLib.trclib.TrcPurePursuitDrive;
+import TrcCommonLib.trclib.TrcUtil;
 import TrcFtcLib.ftclib.FtcDcMotor;
 import TrcFtcLib.ftclib.FtcImu;
-import teamcode.FtcAuto;
 import teamcode.RobotParams;
 
 /**
@@ -71,9 +66,7 @@ public class RobotDrive
      */
     public RobotDrive()
     {
-        gyro = new FtcImu(
-            RobotParams.HWNAME_IMU, RevHubOrientationOnRobot.LogoFacingDirection.UP,
-            RevHubOrientationOnRobot.UsbFacingDirection.LEFT);
+        gyro = new FtcImu(RobotParams.HWNAME_IMU, RobotParams.hubLogoDirection, RobotParams.hubUsbDirection);
     }   //RobotDrive
 
     /**
@@ -118,76 +111,12 @@ public class RobotDrive
         for (int i = 0; i < motorNames.length; i++)
         {
             motors[i] = new FtcDcMotor(motorNames[i]);
-            motors[i].setVelocityPidCoefficients(RobotParams.DRIVE_VELPID_COEFFS);
-            motors[i].setPositionPidCoefficients(RobotParams.DRIVE_POSPID_COEFFS);
             motors[i].setBrakeModeEnabled(RobotParams.DRIVE_WHEEL_BRAKE_MODE_ON);
             motors[i].setMotorInverted(inverted[i]);
+            motors[i].setVoltageCompensationEnabled(TrcUtil.BATTERY_NOMINAL_VOLTAGE);
         }
 
         return motors;
     }   //createDriveMotors
-
-    /**
-     * This method creates a TrcPose2D point in the target path for PurePursuitDrive.
-     *
-     * @param xTargetLocation specifies the target location in field reference frame.
-     * @param yTargetLocation specifies the target location in field reference frame.
-     * @param heading specifies the robot end heading.
-     * @param tileUnit specifies true if location unit is in floor tile unit, false if in inches unit.
-     * @return path point to be used in PurePursuitDrive.
-     */
-    public TrcPose2D pathPoint(double xTargetLocation, double yTargetLocation, double heading, boolean tileUnit)
-    {
-        double unitScale = tileUnit? RobotParams.FULL_TILE_INCHES: 1.0;
-
-        return new TrcPose2D(xTargetLocation*unitScale, yTargetLocation*unitScale, heading);
-    }   //pathPoint
-
-    /**
-     * This method creates a TrcPose2D point in the target path for PurePursuitDrive.
-     *
-     * @param xTargetLocation specifies the target location in field reference frame.
-     * @param yTargetLocation specifies the target location in field reference frame.
-     * @param heading specifies the robot end heading.
-     * @return path point to be used in PurePursuitDrive.
-     */
-    public TrcPose2D pathPoint(double xTargetLocation, double yTargetLocation, double heading)
-    {
-        return pathPoint(xTargetLocation, yTargetLocation, heading, true);
-    }   //pathPoint
-
-    /**
-     * This method creates a TrcPose2D point in the target path for PurePursuitDrive.
-     *
-     * @param targetLocation specifies the target location in field reference frame.
-     * @param heading specifies the robot end heading.
-     * @param tileUnit specifies true if location unit is in floor tile unit, false if in inches unit.
-     * @return path point to be used in PurePursuitDrive.
-     */
-    public TrcPose2D pathPoint(Point targetLocation, double heading, boolean tileUnit)
-    {
-        return pathPoint(targetLocation.x, targetLocation.y, heading, tileUnit);
-    }   //pathPoint
-
-    /**
-     * This method creates a TrcPose2D point in the target path for PurePursuitDrive.
-     *
-     * @param targetLocation specifies the target location in field reference frame.
-     * @param heading specifies the robot end heading.
-     * @return path point to be used in PurePursuitDrive.
-     */
-    public TrcPose2D pathPoint(Point targetLocation, double heading)
-    {
-        return pathPoint(targetLocation.x, targetLocation.y, heading, true);
-    }   //pathPoint
-
-    /**
-     * This method sets the robot's autonomous starting position according to the autonomous choices.
-     *
-     * @param autoChoices specifies all the auto choices.
-     */
-    public void setAutoStartPosition(FtcAuto.AutoChoices autoChoices)
-    {
-    }   //setAutoStartPosition
 
 }   //class RobotDrive

@@ -26,9 +26,12 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import java.util.Locale;
 
+import TrcCommonLib.trclib.TrcDbgTrace;
 import TrcCommonLib.trclib.TrcDriveBase;
 import TrcCommonLib.trclib.TrcGameController;
+import TrcCommonLib.trclib.TrcPose2D;
 import TrcCommonLib.trclib.TrcRobot;
+import TrcCommonLib.trclib.TrcTimer;
 import TrcFtcLib.ftclib.FtcGamepad;
 import TrcFtcLib.ftclib.FtcOpMode;
 import teamcode.drivebases.SwerveDrive;
@@ -39,13 +42,16 @@ import teamcode.drivebases.SwerveDrive;
 @TeleOp(name="FtcTeleOp", group="Ftcxxxx")
 public class FtcTeleOp extends FtcOpMode
 {
-    private static final String moduleName = "FtcTeleOp";
+    private static final String moduleName = FtcTeleOp.class.getSimpleName();
+
     protected Robot robot;
     protected FtcGamepad driverGamepad;
     protected FtcGamepad operatorGamepad;
     private double drivePowerScale = RobotParams.DRIVE_POWER_SCALE_NORMAL;
     private double turnPowerScale = RobotParams.TURN_POWER_SCALE_NORMAL;
     private boolean manualOverride = false;
+    private boolean relocalizing = false;
+    private TrcPose2D robotFieldPose = null;
 
     //
     // Implements FtcOpMode abstract method.
@@ -70,7 +76,7 @@ public class FtcTeleOp extends FtcOpMode
             String filePrefix = Robot.matchInfo != null?
                 String.format(Locale.US, "%s%02d_TeleOp", Robot.matchInfo.matchType, Robot.matchInfo.matchNumber):
                 "Unknown_TeleOp";
-            robot.globalTracer.openTraceLog(RobotParams.LOG_FOLDER_PATH, filePrefix);
+            TrcDbgTrace.openTraceLog(RobotParams.LOG_FOLDER_PATH, filePrefix);
         }
         //
         // Create and initialize Gamepads.
@@ -97,16 +103,25 @@ public class FtcTeleOp extends FtcOpMode
     @Override
     public void startMode(TrcRobot.RunMode prevMode, TrcRobot.RunMode nextMode)
     {
-        if (robot.globalTracer.isTraceLogOpened())
+        if (TrcDbgTrace.isTraceLogOpened())
         {
-            robot.globalTracer.setTraceLogEnabled(true);
+            TrcDbgTrace.setTraceLogEnabled(true);
         }
-        robot.globalTracer.traceInfo(moduleName, "***** Starting TeleOp *****");
+        robot.globalTracer.traceInfo(
+            moduleName, "***** Starting TeleOp: " + TrcTimer.getCurrentTimeString() + " *****");
         robot.dashboard.clearDisplay();
         //
         // Tell robot object opmode is about to start so it can do the necessary start initialization for the mode.
         //
         robot.startMode(nextMode);
+        //
+        // Enable AprilTag vision for re-localization.
+        //
+        if (robot.vision != null && robot.vision.aprilTagVision != null)
+        {
+            robot.globalTracer.traceInfo(moduleName, "Enabling AprilTagVision.");
+            robot.vision.setAprilTagVisionEnabled(true);
+        }
     }   //startMode
 
     /**
@@ -123,12 +138,13 @@ public class FtcTeleOp extends FtcOpMode
         // Tell robot object opmode is about to stop so it can do the necessary cleanup for the mode.
         //
         robot.stopMode(prevMode);
-        printPerformanceMetrics(robot.globalTracer);
-        robot.globalTracer.traceInfo(moduleName, "***** Stopping TeleOp *****");
+        printPerformanceMetrics();
+        robot.globalTracer.traceInfo(
+            moduleName, "***** Stopping TeleOp: " + TrcTimer.getCurrentTimeString() + " *****");
 
-        if (robot.globalTracer.isTraceLogOpened())
+        if (TrcDbgTrace.isTraceLogOpened())
         {
-            robot.globalTracer.closeTraceLog();
+            TrcDbgTrace.closeTraceLog();
         }
     }   //stopMode
 
@@ -146,7 +162,6 @@ public class FtcTeleOp extends FtcOpMode
     {
         if (slowPeriodicLoop)
         {
-            int lineNum = 1;
             //
             // DriveBase subsystem.
             //
@@ -155,26 +170,34 @@ public class FtcTeleOp extends FtcOpMode
                 double[] inputs = driverGamepad.getDriveInputs(
                     RobotParams.ROBOT_DRIVE_MODE, true, drivePowerScale, turnPowerScale);
 
-                if (RobotParams.ROBOT_DRIVE_MODE == FtcGamepad.DriveMode.HOLONOMIC_MODE &&
-                    robot.robotDrive.driveBase.supportsHolonomicDrive())
+                if (robot.robotDrive.driveBase.supportsHolonomicDrive())
                 {
                     robot.robotDrive.driveBase.holonomicDrive(
-                        null, inputs[0], inputs[1], inputs[2],
-                        robot.robotDrive.driveBase.getDriveGyroAngle());
+                        null, inputs[0], inputs[1], inputs[2], robot.robotDrive.driveBase.getDriveGyroAngle());
                 }
                 else
                 {
                     robot.robotDrive.driveBase.arcadeDrive(inputs[1], inputs[2]);
                 }
                 robot.dashboard.displayPrintf(
-                    lineNum++, "Pose:%s,x=%.2f,y=%.2f,rot=%.2f",
-                    robot.robotDrive.driveBase.getFieldPosition(), inputs[0], inputs[1], inputs[2]);
+                    1, "RobotDrive: Power=(%.2f,y=%.2f,rot=%.2f),Mode:%s",
+                    inputs[0], inputs[1], inputs[2], robot.robotDrive.driveBase.getDriveOrientation());
+                // We are trying to re-localize the robot and vision hasn't seen AprilTag yet.
+                if (relocalizing && robotFieldPose == null)
+                {
+                    robotFieldPose = robot.vision.getRobotFieldPose();
+                }
             }
             //
             // Other subsystems.
             //
             if (RobotParams.Preferences.useSubsystems)
             {
+            }
+            // Display subsystem status.
+            if (RobotParams.Preferences.doStatusUpdate)
+            {
+                robot.updateStatus();
             }
         }
     }   //periodic
@@ -188,6 +211,7 @@ public class FtcTeleOp extends FtcOpMode
     {
         if (robot.robotDrive != null)
         {
+            robot.globalTracer.traceInfo(moduleName, "driveOrientation=" + orientation);
             robot.robotDrive.driveBase.setDriveOrientation(
                 orientation, orientation == TrcDriveBase.DriveOrientation.FIELD);
             if (robot.blinkin != null)
@@ -210,15 +234,19 @@ public class FtcTeleOp extends FtcOpMode
      */
     public void driverButtonEvent(TrcGameController gamepad, int button, boolean pressed)
     {
-        robot.dashboard.displayPrintf(7, "%s: %04x->%s", gamepad, button, pressed? "Pressed": "Released");
+        robot.dashboard.displayPrintf(8, "%s: %04x->%s", gamepad, button, pressed? "Pressed": "Released");
 
         switch (button)
         {
             case FtcGamepad.GAMEPAD_A:
-                if (pressed && robot.robotDrive != null)
+                if (pressed)
                 {
-                    // Cancel all auto-assist driving.
-                    robot.robotDrive.cancel();
+                    robot.globalTracer.traceInfo(moduleName, ">>>>> CancelAll is pressed.");
+                    if (robot.robotDrive != null)
+                    {
+                        // Cancel all auto-assist driving.
+                        robot.robotDrive.cancel();
+                    }
                 }
                 break;
 
@@ -229,26 +257,53 @@ public class FtcTeleOp extends FtcOpMode
                 break;
 
             case FtcGamepad.GAMEPAD_Y:
+                if (pressed && robot.robotDrive != null)
+                {
+                    if (robot.robotDrive.driveBase.isGyroAssistEnabled())
+                    {
+                        // Disable GyroAssist drive.
+                        robot.globalTracer.traceInfo(moduleName, ">>>>> Disabling GyroAssist.");
+                        robot.robotDrive.driveBase.setGyroAssistEnabled(null);
+                    }
+                    else
+                    {
+                        // Enable GyroAssist drive.
+                        robot.globalTracer.traceInfo(moduleName, ">>>>> Enabling GyroAssist.");
+                        robot.robotDrive.driveBase.setGyroAssistEnabled(robot.robotDrive.pidDrive.getTurnPidCtrl());
+                    }
+                }
                 break;
 
             case FtcGamepad.GAMEPAD_LBUMPER:
-                // Press and hold for slow drive.
-                drivePowerScale = pressed? RobotParams.DRIVE_POWER_SCALE_SLOW: RobotParams.DRIVE_POWER_SCALE_NORMAL;
-                turnPowerScale = pressed? RobotParams.TURN_POWER_SCALE_SLOW: RobotParams.TURN_POWER_SCALE_NORMAL;
-                break;
-
-            case FtcGamepad.GAMEPAD_RBUMPER:
                 // Toggle between field or robot oriented driving, only applicable for holonomic drive base.
                 if (pressed && robot.robotDrive != null && robot.robotDrive.driveBase.supportsHolonomicDrive())
                 {
                     if (robot.robotDrive.driveBase.getDriveOrientation() != TrcDriveBase.DriveOrientation.FIELD)
                     {
+                        robot.globalTracer.traceInfo(moduleName, ">>>>> Enabling FIELD mode.");
                         setDriveOrientation(TrcDriveBase.DriveOrientation.FIELD);
                     }
                     else
                     {
+                        robot.globalTracer.traceInfo(moduleName, ">>>>> Enabling ROBOT mode.");
                         setDriveOrientation(TrcDriveBase.DriveOrientation.ROBOT);
                     }
+                }
+                break;
+
+            case FtcGamepad.GAMEPAD_RBUMPER:
+                // Press and hold for slow drive.
+                if (pressed)
+                {
+                    robot.globalTracer.traceInfo(moduleName, ">>>>> DrivePower slow.");
+                    drivePowerScale = RobotParams.DRIVE_POWER_SCALE_SLOW;
+                    turnPowerScale = RobotParams.TURN_POWER_SCALE_SLOW;
+                }
+                else
+                {
+                    robot.globalTracer.traceInfo(moduleName, ">>>>> DrivePower normal.");
+                    drivePowerScale = RobotParams.DRIVE_POWER_SCALE_NORMAL;
+                    turnPowerScale = RobotParams.TURN_POWER_SCALE_NORMAL;
                 }
                 break;
 
@@ -264,9 +319,35 @@ public class FtcTeleOp extends FtcOpMode
             case FtcGamepad.GAMEPAD_DPAD_RIGHT:
                 break;
 
+            case FtcGamepad.GAMEPAD_START:
+                if (robot.vision != null && robot.vision.aprilTagVision != null && robot.robotDrive != null)
+                {
+                    // On press of the button, we will start looking for AprilTag for re-localization.
+                    // On release of the button, we will set the robot's field location if we found the AprilTag.
+                    relocalizing = pressed;
+                    if (!pressed)
+                    {
+                        if (robotFieldPose != null)
+                        {
+                            // Vision found an AprilTag, set the new robot field location.
+                            robot.globalTracer.traceInfo(
+                                moduleName, ">>>>> Finish re-localizing: pose=" + robotFieldPose);
+                            robot.robotDrive.driveBase.setFieldPosition(robotFieldPose, false);
+                            robotFieldPose = null;
+                        }
+                    }
+                    else
+                    {
+                        robot.globalTracer.traceInfo(moduleName, ">>>>> Start re-localizing ...");
+                    }
+                }
+                break;
+
             case FtcGamepad.GAMEPAD_BACK:
                 if (pressed && robot.robotDrive != null && robot.robotDrive instanceof SwerveDrive)
                 {
+                    // Drive base is a Swerve Drive, align all steering wheels forward.
+                    robot.globalTracer.traceInfo(moduleName, ">>>>> Set SteerAngle to zero.");
                     ((SwerveDrive) robot.robotDrive).setSteerAngle(0.0, false, false);
                 }
                 break;
@@ -282,7 +363,7 @@ public class FtcTeleOp extends FtcOpMode
      */
     public void operatorButtonEvent(TrcGameController gamepad, int button, boolean pressed)
     {
-        robot.dashboard.displayPrintf(7, "%s: %04x->%s", gamepad, button, pressed? "Pressed": "Released");
+        robot.dashboard.displayPrintf(8, "%s: %04x->%s", gamepad, button, pressed? "Pressed": "Released");
 
         switch (button)
         {
@@ -302,6 +383,7 @@ public class FtcTeleOp extends FtcOpMode
                 break;
 
             case FtcGamepad.GAMEPAD_RBUMPER:
+                robot.globalTracer.traceInfo(moduleName, ">>>>> ManulOverride=" + pressed);
                 manualOverride = pressed;
                 break;
 
@@ -321,6 +403,7 @@ public class FtcTeleOp extends FtcOpMode
                 if (pressed)
                 {
                     // Zero calibrate all subsystems (arm, elevator and turret).
+                    robot.globalTracer.traceInfo(moduleName, ">>>>> ZeroCalibrate pressed.");
                     robot.zeroCalibrate(moduleName);
                 }
                 break;
